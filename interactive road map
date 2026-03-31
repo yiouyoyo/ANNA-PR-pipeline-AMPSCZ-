@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PSYCHS NLP Pipeline — ANNA-PR</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0d12;
+    --surface: #111520;
+    --surface2: #161c2a;
+    --border: rgba(99,140,255,0.15);
+    --border2: rgba(99,140,255,0.3);
+    --accent: #638cff;
+    --accent2: #3dffc8;
+    --warn: #ff6b6b;
+    --warn2: #ffb347;
+    --text: #d4daf0;
+    --muted: #5a6380;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(99,140,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,140,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* HEADER */
+  header { margin-bottom: 48px; }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; color: var(--accent2); border: 1px solid rgba(61,255,200,0.25); padding: 4px 10px; border-radius: 3px; margin-bottom: 16px; text-transform: uppercase; }
+  h1 { font-family: var(--mono); font-size: 26px; font-weight: 600; color: #fff; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 8px; }
+  h1 span { color: var(--accent); }
+  .subtitle { font-size: 14px; color: var(--muted); font-weight: 300; max-width: 520px; line-height: 1.6; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab { font-family: var(--mono); font-size: 12px; padding: 10px 18px; cursor: pointer; color: var(--muted); border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; letter-spacing: 0.05em; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* FILTERS */
+  .filters { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; align-items: center; }
+  .filter-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-right: 4px; }
+  .filter-btn { font-family: var(--mono); font-size: 11px; padding: 5px 12px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em; }
+  .filter-btn:hover { border-color: var(--border2); color: var(--text); }
+  .filter-btn.active { background: rgba(99,140,255,0.1); border-color: var(--accent); color: var(--accent); }
+  .filter-btn.challenge.active { background: rgba(255,107,107,0.1); border-color: var(--warn); color: var(--warn); }
+  .filter-btn.future.active { background: rgba(61,255,200,0.1); border-color: var(--accent2); color: var(--accent2); }
+
+  /* STAGE CARDS */
+  .stage-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .stage-row {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+    transition: border-color 0.2s, opacity 0.2s;
+  }
+  .stage-row:hover { border-color: var(--border2); }
+  .stage-row.dimmed { opacity: 0.25; pointer-events: none; }
+
+  .stage-header {
+    display: grid;
+    grid-template-columns: 180px 1fr 1fr 32px;
+    gap: 0;
+    align-items: stretch;
+    cursor: pointer;
+    min-height: 58px;
+  }
+
+  .stage-label {
+    padding: 14px 18px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  }
+  .stage-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: #fff; }
+  .stage-timing { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+  .stage-timing.now { color: var(--accent2); }
+
+  .challenge-cell, .future-cell {
+    padding: 14px 18px;
+    display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    border-right: 1px solid var(--border);
+  }
+  .cell-type { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+  .cell-type.ch { color: var(--warn); }
+  .cell-type.fu { color: var(--accent2); }
+  .cell-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .cell-sub { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+  .expand-btn {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 16px; transition: transform 0.2s;
+    padding: 0 12px;
+  }
+  .stage-row.open .expand-btn { transform: rotate(180deg); color: var(--accent); }
+
+  /* DETAIL PANEL */
+  .stage-detail {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 20px 24px;
+    background: var(--surface2);
+  }
+  .stage-row.open .stage-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  .detail-block h4 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .detail-block h4.ch { color: var(--warn); }
+  .detail-block h4.fu { color: var(--accent2); }
+  .detail-block p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .detail-block ul { padding-left: 16px; }
+  .detail-block li { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .detail-block li::marker { color: var(--accent); }
+
+  /* FINE-TUNING TAB */
+  .ft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .ft-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .ft-card:hover { border-color: var(--border2); }
+  .ft-card-tag { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .ft-card h3 { font-family: var(--mono); font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .ft-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .ft-card code { font-family: var(--mono); font-size: 11px; background: rgba(99,140,255,0.1); padding: 2px 6px; border-radius: 3px; color: var(--accent); }
+
+  .json-block {
+    background: #0d111a; border: 1px solid var(--border); border-radius: 6px;
+    padding: 20px; font-family: var(--mono); font-size: 12px; line-height: 1.8;
+    overflow-x: auto; margin-bottom: 28px;
+  }
+  .json-key { color: var(--accent); }
+  .json-str { color: var(--accent2); }
+  .json-num { color: var(--warn2); }
+  .json-comment { color: var(--muted); font-style: italic; }
+
+  /* EDITOR */
+  .editor-section { margin-top: 32px; }
+  .editor-title { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.08em; margin-bottom: 16px; text-transform: uppercase; }
+  .editor-form { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .editor-form input, .editor-form select, .editor-form textarea {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font-family: var(--sans); font-size: 13px; padding: 10px 12px;
+    transition: border-color 0.2s; outline: none;
+  }
+  .editor-form input:focus, .editor-form select:focus, .editor-form textarea:focus { border-color: var(--accent); }
+  .editor-form textarea { grid-column: span 3; resize: vertical; min-height: 60px; }
+  .editor-form select option { background: var(--surface2); }
+  label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .field { display: flex; flex-direction: column; }
+  .add-btn {
+    font-family: var(--mono); font-size: 12px; padding: 10px 20px;
+    background: rgba(99,140,255,0.1); border: 1px solid var(--accent);
+    color: var(--accent); border-radius: 4px; cursor: pointer;
+    transition: all 0.15s; letter-spacing: 0.05em;
+  }
+  .add-btn:hover { background: rgba(99,140,255,0.2); }
+  .delete-btn {
+    font-family: var(--mono); font-size: 10px; padding: 4px 8px;
+    background: transparent; border: 1px solid rgba(255,107,107,0.3);
+    color: var(--warn); border-radius: 3px; cursor: pointer; margin-left: 8px;
+    transition: all 0.15s;
+  }
+  .delete-btn:hover { background: rgba(255,107,107,0.1); }
+
+  /* FOOTER */
+  footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  footer span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* GOALS TAB */
+  .goals-header { margin-bottom: 28px; }
+  .goals-header p { font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 680px; }
+  .goals-header p strong { color: var(--text); font-weight: 500; }
+
+  .aim-block { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); margin-bottom: 16px; overflow: hidden; }
+  .aim-header { display: flex; align-items: center; gap: 16px; padding: 18px 20px; cursor: pointer; }
+  .aim-pill { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 3px; flex-shrink: 0; }
+  .aim-pill.aim1 { background: rgba(99,140,255,0.12); border: 1px solid rgba(99,140,255,0.3); color: var(--accent); }
+  .aim-pill.aim2 { background: rgba(61,255,200,0.08); border: 1px solid rgba(61,255,200,0.25); color: var(--accent2); }
+  .aim-title { font-family: var(--mono); font-size: 13px; font-weight: 600; color: #fff; flex: 1; }
+  .aim-chevron { color: var(--muted); font-size: 14px; transition: transform 0.2s; }
+  .aim-block.open .aim-chevron { transform: rotate(180deg); color: var(--accent); }
+  .aim-body { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border); }
+  .aim-block.open .aim-body { display: block; }
+  .aim-desc { font-size: 13px; color: var(--muted); line-height: 1.7; margin: 16px 0; }
+
+  /* PRIORITY MATRIX */
+  .priority-section { margin-top: 36px; }
+  .priority-title { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; }
+
+  .priority-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .p-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .p-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .p-card.selected { border-color: var(--accent); background: rgba(99,140,255,0.07); }
+
+  .p-rank { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--border2); margin-bottom: 6px; line-height: 1; }
+  .p-card.selected .p-rank { color: var(--accent); }
+  .p-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .p-horizon { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .p-horizon.now { color: var(--accent2); }
+  .p-horizon.near { color: var(--warn2); }
+  .p-horizon.mid { color: #9b8fff; }
+  .p-horizon.long { color: var(--muted); }
+  .p-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .p-detail-panel {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 20px; margin-bottom: 16px; display: none;
+  }
+  .p-detail-panel.visible { display: block; }
+  .p-detail-panel h4 { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 10px; letter-spacing: 0.06em; }
+  .p-detail-panel p { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 10px; }
+  .p-detail-panel p:last-child { margin-bottom: 0; }
+  .metric-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .metric-chip { font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 3px; border: 1px solid var(--border); color: var(--muted); }
+  .metric-chip.target { border-color: rgba(61,255,200,0.3); color: var(--accent2); background: rgba(61,255,200,0.06); }
+
+  /* IMPACT / EFFORT matrix */
+  .matrix-wrap { margin-top: 28px; }
+  .matrix-title { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; }
+  .impact-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .impact-table th { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); text-transform: uppercase; }
+  .impact-table td { padding: 10px 12px; border-bottom: 1px solid rgba(99,140,255,0.06); vertical-align: top; }
+  .impact-table tr:last-child td { border-bottom: none; }
+  .impact-table tr:hover td { background: var(--surface2); }
+  .impact-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex-shrink: 0; }
+  .effort-bar { display: flex; gap: 3px; align-items: center; }
+  .effort-pip { width: 8px; height: 8px; border-radius: 2px; background: var(--border); }
+  .effort-pip.filled { background: var(--warn2); }
+  td.task-name { font-family: var(--mono); font-size: 11px; color: var(--text); }
+  td.impact-val { font-family: var(--mono); font-size: 11px; }
+  td.rationale-val { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  @media (max-width: 700px) {
+    .priority-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="badge">ANNA-PR · Wolff Lab · AMPSCZ / ProNET</div>
+    <h1>PSYCHS NLP Pipeline<br/><span>Challenge → Direction Roadmap</span></h1>
+    <p class="subtitle">Interactive reference for PSYCHS automated scoring system design. Click any stage to expand detail. Add custom stages in the editor.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('roadmap', this)">Pipeline Roadmap</button>
+    <button class="tab" onclick="switchTab('finetune', this)">Fine-tuning Guide</button>
+    <button class="tab" onclick="switchTab('goals', this)">Goals &amp; Priorities</button>
+  </div>
+
+  <!-- ═══ ROADMAP TAB ═══ -->
+  <div id="tab-roadmap">
+    <div class="filters">
+      <span class="filter-label">filter:</span>
+      <button class="filter-btn active" onclick="setFilter('all', this)">all stages</button>
+      <button class="filter-btn challenge" onclick="setFilter('challenge', this)">challenges</button>
+      <button class="filter-btn future" onclick="setFilter('future', this)">future directions</button>
+    </div>
+    <div class="stage-list" id="stage-list"></div>
+    <div class="editor-section">
+      <div class="editor-title">+ add custom stage</div>
+      <div class="editor-form">
+        <div class="field"><label>Stage name</label><input id="new-name" placeholder="e.g. Speaker diarization"/></div>
+        <div class="field"><label>Timing</label>
+          <select id="new-timing">
+            <option value="now">Current stage</option>
+            <option value="near">Near-term</option>
+            <option value="mid">Mid-term</option>
+            <option value="long">Long-term</option>
+          </select>
+        </div>
+        <div class="field"><label>Challenge (short)</label><input id="new-ch-title" placeholder="e.g. Speaker overlap"/></div>
+        <div class="field"><label>Future direction (short)</label><input id="new-fu-title" placeholder="e.g. Pyannote pipeline"/></div>
+        <div class="field" style="grid-column:span 2"><label>Challenge detail</label><input id="new-ch-detail" placeholder="Detailed description of the challenge..."/></div>
+        <div class="field"><label></label></div>
+        <div class="field" style="grid-column:span 3"><label>Future direction detail</label><textarea id="new-fu-detail" placeholder="Detailed description of the future direction..."></textarea></div>
+      </div>
+      <button class="add-btn" onclick="addStage()">add stage →</button>
+    </div>
+  </div>
+
+  <!-- ═══ FINE-TUNING TAB ═══ -->
+  <div id="tab-finetune" style="display:none">
+    <div class="ft-grid">
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--warn)">data requirement</div>
+        <h3>Training corpus</h3>
+        <p>Certified PSYCHS rater scores from ProNET QC-passed transcripts. Minimum <code>500–1k</code> examples per item for supervised FT; fewer → PEFT (LoRA/QLoRA).</p>
+      </div>
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--accent2)">approach</div>
+        <h3>LoRA / QLoRA</h3>
+        <p>Freeze base weights, train low-rank adapters. Works with hundreds of examples. Target <code>7B–13B</code> (Mistral, Llama-3). Hosted via Together AI or Modal.</p>
+      </div>
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--accent)">input format</div>
+        <h3>Instruction-tuning format</h3>
+        <p>System prompt = item anchor text from manual. User turn = transcript segment. Assistant turn = structured JSON with rationale chain.</p>
+      </div>
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--warn2)">evaluation</div>
+        <h3>Eval metrics</h3>
+        <p>Exact-match overall score, mean absolute error, and whether rationale correctly attributes which measurement concept drove the final rating.</p>
+      </div>
+    </div>
+
+    <div class="editor-title" style="color:var(--muted);margin-bottom:8px;font-size:11px;">target output schema per transcript segment</div>
+    <div class="json-block">
+<span class="json-comment">// One training example — assistant turn</span>
+{
+  <span class="json-key">"item"</span>: <span class="json-str">"P2"</span>,
+  <span class="json-key">"timeframe"</span>: <span class="json-str">"past_month"</span>,
+  <span class="json-key">"description_rating"</span>: <span class="json-num">4</span>,
+  <span class="json-key">"tenacity_rating"</span>: <span class="json-num">3</span>,
+  <span class="json-key">"distress"</span>: <span class="json-num">2</span>,
+  <span class="json-key">"interference"</span>: <span class="json-num">3</span>,
+  <span class="json-key">"overall_severity"</span>: <span class="json-num">4</span>,
+  <span class="json-key">"evidence_span"</span>: <span class="json-str">"I thought people were following me... checked locks ~10x"</span>,
+  <span class="json-key">"rationale"</span>: <span class="json-str">"Description=4 (non-bizarre, some logic). Tenacity=3 (partially correctable). Co-primaries avg 3.5 → 4. Secondary concepts both &lt;4, do not pull down."</span>
+}
+    </div>
+
+    <div class="ft-grid" style="margin-top:0">
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--warn)">key challenge</div>
+        <h3>Rationale distillation</h3>
+        <p>Gold rationale fields don't exist in raw REDCap data. Generate them by prompting a strong LLM to reconstruct reasoning from anchor text + final score, then human-verify.</p>
+      </div>
+      <div class="ft-card">
+        <div class="ft-card-tag" style="color:var(--accent2)">anchor injection</div>
+        <h3>Per-item system prompts</h3>
+        <p>Can't fit full manual at inference time. Strip only the item's anchors (~300–500 tokens) into the system prompt. Model learns to apply anchors to novel transcript language.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ GOALS TAB ═══ -->
+  <div id="tab-goals" style="display:none">
+    <div class="goals-header">
+      <p>ANNA-PR's two formal aims, mapped to the engineering priorities that will get us there. Click any priority card for implementation detail. The impact/effort table at the bottom shows where to focus first.</p>
+    </div>
+
+    <!-- AIM 1 -->
+    <div class="aim-block" id="aim1-block">
+      <div class="aim-header" onclick="toggleAim('aim1-block')">
+        <span class="aim-pill aim1">Aim 1</span>
+        <span class="aim-title">Automated PSYCHS severity scoring — reliable MD ratings from transcripts</span>
+        <span class="aim-chevron">▾</span>
+      </div>
+      <div class="aim-body">
+        <p class="aim-desc">Develop and validate an automated system that generates Measurement Dimension (MD) ratings for all 15 PSYCHS items and synthesizes them using the PSYCHS scoring algorithm. Validated against 2,000 CHR-P participants and 700 healthy controls across 42 ProNET sites. Primary metrics: ICC ≥ 0.75, F1 ≥ 0.80 on CHR-range scores, Jaccard ≥ 0.60 on evidence spans.</p>
+        <p class="aim-desc" style="margin-top:0">Robustness tests include demographic subgroups, accented speech (Chirp-3 ASR), and non-English interviews. Both human-transcribed and ASR-transcribed inputs must meet thresholds.</p>
+      </div>
+    </div>
+
+    <!-- AIM 2 -->
+    <div class="aim-block" id="aim2-block">
+      <div class="aim-header" onclick="toggleAim('aim2-block')">
+        <span class="aim-pill aim2">Aim 2</span>
+        <span class="aim-title">Causally faithful vignette generation — clinician-grade justifications for scores</span>
+        <span class="aim-chevron">▾</span>
+      </div>
+      <div class="aim-body">
+        <p class="aim-desc">Investigate whether LRMs can generate rubric-aligned narrative justifications ("why this level and not ±1") that are causally faithful to the transcript — not post-hoc rationalization. Uses RLHF to align outputs with certified clinician judgments. Three sub-questions: (a) Does the model select the same focal symptom as clinicians? (b) Are justifications rubric-consistent? (c) Are vignettes transcript-faithful by Jaccard/token overlap?</p>
+        <p class="aim-desc" style="margin-top:0">Blinded clinician panel evaluates human vs. AI vignettes. All work runs offline on de-identified AMP SCZ data in HIPAA-compliant Emory/Yale cluster environments — no patient-facing deployment.</p>
+      </div>
+    </div>
+
+    <!-- PRIORITIES -->
+    <div class="priority-section">
+      <div class="priority-title">Engineering priorities — click to expand</div>
+      <div class="priority-grid" id="priority-grid"></div>
+      <div class="p-detail-panel" id="p-detail"></div>
+
+      <!-- IMPACT / EFFORT TABLE -->
+      <div class="matrix-wrap">
+        <div class="matrix-title">Impact vs effort matrix</div>
+        <table class="impact-table">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Aim</th>
+              <th>Impact</th>
+              <th>Effort</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>ANNA-PR Pilot 2.0 · Wolff Lab</span>
+    <span id="stage-count"></span>
+  </footer>
+</div>
+
+<script>
+const DEFAULT_STAGES = [
+  {
+    id: 1, name: "Prompt + LLM", timing: "now",
+    chTitle: "Limited token window", chSub: "Long transcripts truncate",
+    fuTitle: "Semantic chunking", fuSub: "Retrieves relevant segments",
+    chDetail: "PSYCHS interviews often run 60–90 minutes. Full transcripts exceed context windows of most LLMs. Naive truncation drops critical symptom evidence that appears late in the interview, particularly for items like P2 (Suspiciousness) and P15 (Disorganized Communication) where relevant content is distributed throughout.",
+    fuDetail: "Retrieve only the item-relevant segment per inference call using sentence-transformer embeddings (all-MiniLM-L6-v2, threshold 0.75). This is what fie_p2.py already does for P2 — extend the same approach to all 15 items. Reduces token cost and improves signal-to-noise ratio per call."
+  },
+  {
+    id: 2, name: "RAG / chunking", timing: "near",
+    chTitle: "Cost per inference", chSub: "API calls multiply fast",
+    fuTitle: "Semantic chunking", fuSub: "Retrieves relevant segments",
+    chDetail: "Per-item segmentation means up to 15 API calls per transcript. Across ProNET's multicenter dataset (thousands of transcripts), inference costs compound rapidly. At $0.01/1K tokens with ~800 tokens per call, a 15-item pass costs ~$0.12/transcript — manageable per case, significant at scale.",
+    fuDetail: "Batch inference across items where possible. Cache embeddings per transcript. Use cheaper models (e.g. Haiku, GPT-4o-mini) for low-ambiguity items (clear 0s) and route only uncertain cases to stronger models. Confidence-gated routing can reduce cost by 40–60% without sacrificing accuracy on edge cases."
+  },
+  {
+    id: 3, name: "Fine-tuned model", timing: "mid",
+    chTitle: "Precision gaps", chSub: "Ambiguous anchor language",
+    fuTitle: "Domain fine-tuning", fuSub: "Trained on PSYCHS-rated data",
+    chDetail: "Generalist LLMs pattern-match on surface severity language ('I was terrified' → high score) rather than applying the PSYCHS synthesis rules. The co-primary averaging logic, secondary concept tie-breaking, and item-specific anchor calibration (e.g., P1 level 3 vs P2 level 3 are completely different thresholds) are not present in base model training data.",
+    fuDetail: "Fine-tune on (transcript_segment, certified_score, rationale) triples using LoRA on a 7B–13B model. The rationale field is the critical addition — it forces the model to internalize the measurement concept synthesis process, not just memorize score-transcript correlations. Evaluate on inter-rater agreement (ICC) against certified human raters."
+  },
+  {
+    id: 4, name: "Structured output", timing: "mid",
+    chTitle: "Runtime latency", chSub: "Batch vs real-time tradeoffs",
+    fuTitle: "JSON score output", fuSub: "Item + rating + evidence span",
+    chDetail: "Real-time scoring during or immediately after interviews requires sub-10s latency per transcript. Batch processing is feasible for retrospective rating but doesn't serve clinical feedback use cases. Hosting a fine-tuned 13B model on-premise introduces infrastructure overhead for smaller ProNET sites.",
+    fuDetail: "Constrained JSON output (item, rating, evidence_span, rationale) enables downstream validation pipelines and REDCap auto-import. Evidence span extraction lets human reviewers spot-check AI ratings efficiently. Async batch processing with result webhooks handles the latency constraint for non-real-time use cases."
+  },
+  {
+    id: 5, name: "Human-in-loop", timing: "long",
+    chTitle: "Cost–benefit balance", chSub: "Rater time vs AI review cost",
+    fuTitle: "Confidence-gated review", fuSub: "Human flags low-confidence items",
+    chDetail: "Full AI scoring without human review is not appropriate for a clinical research instrument. But requiring human review of every AI rating eliminates most of the efficiency gain. The cost-benefit inflection point depends on the ICC of the AI rater — below a threshold, human review time exceeds the time saved. This threshold needs empirical validation against ProNET rater data.",
+    fuDetail: "Route only low-confidence predictions (model uncertainty above a calibrated threshold, or items with evidence_span score below similarity cutoff) to human review. Certified raters review AI rationale + transcript span rather than full re-rating from scratch. Projected time savings: 60–70% reduction in rater hours on clear cases."
+  }
+];
+
+let stages = JSON.parse(localStorage.getItem('psychs_stages') || 'null') || DEFAULT_STAGES;
+let currentFilter = 'all';
+
+function save() { localStorage.setItem('psychs_stages', JSON.stringify(stages)); }
+
+function renderStages() {
+  const list = document.getElementById('stage-list');
+  list.innerHTML = '';
+  document.getElementById('stage-count').textContent = `${stages.length} stages`;
+
+  stages.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'stage-row';
+    row.id = `stage-${s.id}`;
+
+    if (currentFilter === 'challenge') row.classList.add('');
+    if (currentFilter === 'future') row.classList.add('');
+
+    const timingClass = s.timing === 'now' ? 'now' : '';
+    const timingLabel = {now:'Current stage', near:'Near-term', mid:'Mid-term', long:'Long-term'}[s.timing] || s.timing;
+
+    row.innerHTML = `
+      <div class="stage-header" onclick="toggleStage(${s.id})">
+        <div class="stage-label">
+          <span class="stage-name">${escHtml(s.name)}</span>
+          <span class="stage-timing ${timingClass}">${timingLabel}</span>
+        </div>
+        <div class="challenge-cell">
+          <span class="cell-type ch">challenge</span>
+          <span class="cell-title">${escHtml(s.chTitle)}</span>
+          <span class="cell-sub">${escHtml(s.chSub)}</span>
+        </div>
+        <div class="future-cell">
+          <span class="cell-type fu">direction</span>
+          <span class="cell-title">${escHtml(s.fuTitle)}</span>
+          <span class="cell-sub">${escHtml(s.fuSub)}</span>
+        </div>
+        <div class="expand-btn">▾</div>
+      </div>
+      <div class="stage-detail">
+        <div class="detail-block">
+          <h4 class="ch">Current challenge</h4>
+          <p>${escHtml(s.chDetail)}</p>
+        </div>
+        <div class="detail-block">
+          <h4 class="fu">Future direction</h4>
+          <p>${escHtml(s.fuDetail)}</p>
+          ${i >= 5 ? `<button class="delete-btn" onclick="deleteStage(event,${s.id})">remove stage</button>` : ''}
+        </div>
+      </div>
+    `;
+
+    if (currentFilter === 'challenge') {
+      // highlight challenge side — handled via CSS already via cell-type
+    }
+
+    list.appendChild(row);
+  });
+}
+
+function toggleStage(id) {
+  const row = document.getElementById(`stage-${id}`);
+  row.classList.toggle('open');
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.querySelectorAll('.stage-row').forEach(row => {
+    row.classList.remove('dimmed');
+  });
+
+  if (f === 'challenge') {
+    document.querySelectorAll('.stage-row').forEach(row => {
+      row.classList.add('dimmed');
+    });
+    // show all but highlight nothing — actually just keep all visible, dim future column
+    document.querySelectorAll('.stage-row').forEach(row => row.classList.remove('dimmed'));
+    document.querySelectorAll('.future-cell').forEach(c => c.style.opacity = '0.2');
+    document.querySelectorAll('.challenge-cell').forEach(c => c.style.opacity = '1');
+  } else if (f === 'future') {
+    document.querySelectorAll('.challenge-cell').forEach(c => c.style.opacity = '0.2');
+    document.querySelectorAll('.future-cell').forEach(c => c.style.opacity = '1');
+  } else {
+    document.querySelectorAll('.challenge-cell, .future-cell').forEach(c => c.style.opacity = '1');
+  }
+}
+
+function addStage() {
+  const name = document.getElementById('new-name').value.trim();
+  const timing = document.getElementById('new-timing').value;
+  const chTitle = document.getElementById('new-ch-title').value.trim();
+  const fuTitle = document.getElementById('new-fu-title').value.trim();
+  const chDetail = document.getElementById('new-ch-detail').value.trim();
+  const fuDetail = document.getElementById('new-fu-detail').value.trim();
+
+  if (!name || !chTitle || !fuTitle) {
+    alert('Please fill in stage name, challenge, and future direction.');
+    return;
+  }
+
+  const newStage = {
+    id: Date.now(), name, timing,
+    chTitle, chSub: '', fuTitle, fuSub: '',
+    chDetail: chDetail || chTitle,
+    fuDetail: fuDetail || fuTitle
+  };
+
+  stages.push(newStage);
+  save();
+  renderStages();
+
+  ['new-name','new-ch-title','new-fu-title','new-ch-detail','new-fu-detail'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+
+function deleteStage(e, id) {
+  e.stopPropagation();
+  stages = stages.filter(s => s.id !== id);
+  save();
+  renderStages();
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-roadmap').style.display = tab === 'roadmap' ? '' : 'none';
+  document.getElementById('tab-finetune').style.display = tab === 'finetune' ? '' : 'none';
+  document.getElementById('tab-goals').style.display = tab === 'goals' ? '' : 'none';
+  if (tab === 'goals') { renderPriorities(); renderMatrix(); }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══ GOALS TAB ═══
+const PRIORITIES = [
+  {
+    rank: 1, name: "P2 segment extractor", horizon: "now",
+    short: "fie_p2.py — working pipeline for Pilot 2.0 transcripts",
+    aim: "Aim 1",
+    detail: "The immediate deliverable for ANNA-PR Pilot 2.0. Extracts P2 (Suspiciousness/Paranoia) segments from timestamped transcripts across 5 ProNET site subfolders using semantic similarity (all-MiniLM-L6-v2, threshold 0.75). Cross-item bleed detection handles paranoid content appearing during P1. Output saved to Wolff Lab directories in structured format.",
+    metric: ["ICC on P2 ≥ 0.75", "F1 on CHR range ≥ 0.80", "Bleed FP rate < 10%"]
+  },
+  {
+    rank: 2, name: "Extend to all 15 items", horizon: "near",
+    short: "Generalize segment extractor to full PSYCHS item set",
+    aim: "Aim 1",
+    detail: "Replicate the fie_p2.py architecture for P1–P15. Each item needs its own inquiry anchor set for semantic boundary detection. P15 (Disorganized Communication) is hardest — symptom is observable in real-time speech patterns, not just reported content. P3 (Somatic Obsessions) and P7–P15 (perceptual items) each require distinct probe sets from the PSYCHS manual.",
+    metric: ["All 15 items operational", "Per-item segment precision ≥ 0.80", "Site folder structure preserved"]
+  },
+  {
+    rank: 3, name: "MD rating prompt pipeline", horizon: "near",
+    short: "LLM scoring of segments → all four MD ratings",
+    aim: "Aim 1",
+    detail: "For each extracted segment, prompt an LLM to produce Measurement Dimension ratings: Description (0–6), Tenacity/Source/Self-correction (0–6), Distress, Interference. System prompt contains item-specific anchor text from the PSYCHS manual (~300–500 tokens). Output is structured JSON. Then apply the PSYCHS synthesis algorithm (co-primary averaging, secondary tie-breaking) to produce the final overall severity score.",
+    metric: ["JSON schema validated", "Synthesis algorithm unit-tested", "MAE ≤ 0.8 vs certified raters"]
+  },
+  {
+    rank: 4, name: "Validation vs gold labels", horizon: "near",
+    short: "ICC, κ, F1, Bland–Altman vs ProNET certified rater scores",
+    aim: "Aim 1",
+    detail: "Run full evaluation against REDCap-stored certified rater scores from QC-passed ProNET transcripts. Primary: ICC ≥ 0.75, κ ≥ 0.60, F1 ≥ 0.80 for CHR-range scores (ratings 3–5). Bland–Altman plots detect systematic over-scoring at higher severities. Jaccard indices at sentence/token level for evidence span overlap. Subgroup analysis by site, interviewer accent, and participant demographic.",
+    metric: ["ICC ≥ 0.75", "F1 ≥ 0.80 (CHR range)", "Jaccard ≥ 0.60 (evidence spans)"]
+  },
+  {
+    rank: 5, name: "Vignette generation", horizon: "mid",
+    short: "LRM-based 'why this level and not ±1' justification",
+    aim: "Aim 2",
+    detail: "Given a final severity score and transcript segment, generate a clinician-style vignette explaining the score — identifying the specific symptom experience, mapping it to anchor language, and stating why it does not meet the adjacent level. Uses a Large Reasoning Model (e.g. o3, Gemini 2.0 Flash Thinking). Evaluated on: focal symptom selection agreement with clinicians, rubric-consistency, and clinician-blinded preference vs human vignettes.",
+    metric: ["Symptom selection agreement ≥ 0.80", "Clinician acceptability ≥ 70%", "Jaccard vs human vignette ≥ 0.50"]
+  },
+  {
+    rank: 6, name: "RLHF alignment", horizon: "long",
+    short: "Reinforce vignette outputs against clinician feedback",
+    aim: "Aim 2",
+    detail: "Collect clinician preference labels on AI-generated vs human vignettes via blinded evaluation panel. Train a reward model on these preferences. Use PPO or DPO to fine-tune the vignette generator toward clinician-acceptable outputs. Highest-effort component — depends on stable base vignette system first. Requires IRB-approved clinician panel, structured annotation protocol, and HIPAA-compliant annotation environment.",
+    metric: ["Reward model accuracy ≥ 0.75", "Post-RLHF clinician preference ≥ 80%", "No regression on scoring accuracy"]
+  }
+];
+
+const MATRIX = [
+  { task: "P2 extractor (fie_p2.py)", aim: "Aim 1", impact: 5, effort: 1, note: "Already in progress — highest ROI, immediate Pilot 2.0 deliverable" },
+  { task: "Extend to all 15 items", aim: "Aim 1", impact: 5, effort: 3, note: "Core Aim 1 scope — reuses fie_p2.py architecture, anchors from manual" },
+  { task: "MD rating prompt pipeline", aim: "Aim 1", impact: 5, effort: 3, note: "Enables full scoring loop — JSON output + synthesis algorithm" },
+  { task: "Validation vs gold labels", aim: "Aim 1", impact: 5, effort: 2, note: "Required for grant deliverables — ICC, F1, Bland–Altman" },
+  { task: "ASR robustness (Chirp-3)", aim: "Aim 1", impact: 3, effort: 2, note: "Chirp-3 already evaluated — test on existing pipeline outputs" },
+  { task: "Vignette generation (LRM)", aim: "Aim 2", impact: 4, effort: 4, note: "New Aim 2 direction — high scientific novelty, higher dev cost" },
+  { task: "Causal faithfulness eval", aim: "Aim 2", impact: 4, effort: 3, note: "Jaccard + clinician blinding protocol — novel eval methodology" },
+  { task: "RLHF alignment", aim: "Aim 2", impact: 4, effort: 5, note: "Highest effort — needs stable base system + clinician panel first" },
+];
+
+let selectedPriority = null;
+
+function renderPriorities() {
+  const grid = document.getElementById('priority-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  PRIORITIES.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'p-card' + (selectedPriority === p.rank ? ' selected' : '');
+    card.innerHTML = `
+      <div class="p-rank">${String(p.rank).padStart(2,'0')}</div>
+      <div class="p-name">${p.name}</div>
+      <div class="p-horizon ${p.horizon}">${{now:'Current',near:'Near-term',mid:'Mid-term',long:'Long-term'}[p.horizon]}</div>
+      <div class="p-desc">${p.short}</div>
+    `;
+    card.onclick = () => selectPriority(p.rank);
+    grid.appendChild(card);
+  });
+}
+
+function selectPriority(rank) {
+  const panel = document.getElementById('p-detail');
+  if (selectedPriority === rank) {
+    selectedPriority = null;
+    panel.classList.remove('visible');
+    panel.innerHTML = '';
+    renderPriorities();
+    return;
+  }
+  selectedPriority = rank;
+  const p = PRIORITIES.find(x => x.rank === rank);
+  const chips = p.metric.map(m => `<span class="metric-chip target">${m}</span>`).join('');
+  panel.innerHTML = `
+    <h4>${String(p.rank).padStart(2,'0')} — ${p.name} <span style="color:var(--muted);font-weight:400;font-size:10px;margin-left:8px">${p.aim}</span></h4>
+    <p>${p.detail}</p>
+    <div class="metric-row">${chips}</div>
+  `;
+  panel.classList.add('visible');
+  renderPriorities();
+}
+
+function renderMatrix() {
+  const tbody = document.getElementById('matrix-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  MATRIX.forEach(row => {
+    const tr = document.createElement('tr');
+    const pips = Array.from({length:5}, (_,i) =>
+      `<div class="effort-pip${i < row.effort ? ' filled':''}"></div>`
+    ).join('');
+    const impactColor = row.impact >= 5 ? '#3dffc8' : row.impact >= 4 ? '#ffb347' : '#5a6380';
+    const aimColor = row.aim === 'Aim 1' ? 'var(--accent)' : 'var(--accent2)';
+    tr.innerHTML = `
+      <td class="task-name">${row.task}</td>
+      <td><span style="font-family:var(--mono);font-size:10px;color:${aimColor}">${row.aim}</span></td>
+      <td class="impact-val"><span style="color:${impactColor};font-family:var(--mono)">${'█'.repeat(row.impact)}${'░'.repeat(5-row.impact)}</span></td>
+      <td><div class="effort-bar">${pips}</div></td>
+      <td class="rationale-val">${row.note}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleAim(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+renderStages();
+</script>
+</body>
+</html>
